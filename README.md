@@ -13,8 +13,10 @@ pkgA 1.0 contains the following code:
 ```R
 #### pkgA 1.0 ####
 makeClosure <- function(txt = "") {
+  versionString <- "pkgA 1.0"
   function() {
-    print(paste0("This closure was created in pkgA 1.0"))
+    print("This closure was created in pkgA 1.0")
+    print(paste0("The parent env of this closure has versionString ", versionString))
     funA()
   }
 }
@@ -53,6 +55,7 @@ install('pkgB')
 library(pkgB)
 funB()
 #> [1] "This closure was created in pkgA 1.0"
+#> [1] "The parent env of this closure has versionString pkgA 1.0"
 #> [1] "Called funA in pkgA 1.0"
 ```
 
@@ -67,8 +70,10 @@ pkgA 2.0 is very similar to 1.0, except that its functions identify themselves a
 ```R
 #### pkgA 2.0 ####
 makeClosure <- function(txt = "") {
+  versionString <- "pkgA 2.0"
   function() {
-    print(paste0("This closure was created in pkgA 2.0"))
+    print("This closure was created in pkgA 2.0")
+    print(paste0("The parent env of this closure has versionString ", versionString))
     funA()
   }
 }
@@ -91,9 +96,16 @@ install('pkgA_2')
 library(pkgB)
 funB()
 #> [1] "This closure was created in pkgA 1.0"
+#> [1] "The parent env of this closure has versionString pkgA 1.0"
 #> [1] "Called funA in pkgA 2.0"
 ```
 
-We can conclude that although the `funB` function body was created by pkgA 1.0, and is saved as part of pkgB, the enclosing environment for `funB` is *not* saved as part of pkgB. R must know that, because the enclosing environment is the pkgA namespace, it doesn't need to save that environment in pkgB, but can dynamically assign the pkgA namespace environment to `funB` when pkgB is loaded.
+We can conclude that:
+
+* The `funB` function body was created by pkgA 1.0, and is saved as part of pkgB.
+* The parent environment for `funB` is also saved as part of pkgB.
+* The parent of the parent environment -- which is the pkgA namespace environment -- is _not_ saved as part of pkgB.
+
+R must know that, because the grandparent environment is the pkgA namespace, it doesn't need to save that environment in pkgB, but can dynamically assign the pkgA namespace environment to `funB` when pkgB is loaded.
 
 This could potentially lead to a mismatch between the function body and pkgA namespace. The body of the function in pkgB might expect to find one thing in the pkgA namespace, when the pkgA namespace contains something different.
