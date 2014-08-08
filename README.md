@@ -131,8 +131,142 @@ Suppose pkgA 1.0 and pkgB are on CRAN (as binary packages), and then pkgA is upd
 
 This means that if a package is used to create objects that are stored in another package, and that first package changes, it could potentially break every package that uses it. In the example here, imagine if `funA` (which is not an exported function) were removed in pkgA 3.0. In this situation, anyone who started with pkgA 1.0 or 2.0 installed, then installed pkgB, then upgraded to pkgA 3.0, would suddenly see pkgB break!
 
+### Implications for reproducibility
 
-## Cleaning up
+In most discussions of reproducible research with R, it's assumed that if we hold the following constant, it will result in an environment with reproducible results:
+
+* OS version (including system-level packages)
+* R version
+* installed package versions
+
+An implicit assumption is that the state of a _built_ package depends only on the version of the source package; if the input is the Shiny 0.11 package, the output is always the same.
+
+But what we've seen here is that this isn't true. The state of a built package depends on more than the state of the source package; it can also depend on the other packages used by the source package.
+
+If we have two computers, both of which have the same OS, R version, and both have pkgA 2.0 and pkgB 1.0, we still can't be sure that they will behave the same. To ensure a reproducible environment, we would also need to record what version of pkgA was present when pkgB was built.
+
+*****
+
+# A more realistic example
+
+The example above was kind of abstract. Here's a more realistic example. pkgA also has a function `Stack()`, which returns a list with functions that enclose the pkgA namespace. Here's the code from pkgA 1.0:
+
+```R
+# Create a stack object that can hold numbers
+Stack <- function() {
+  s <- numeric()
+  push <- function(val) s <<- c(val, s)
+  pop <- function() {
+    val <- s[1]
+    s <<- s[-1]
+    val
+  }
+  showRandom <- function() print(randomOrder(s))
+
+  list(push = push, pop = pop, showRandom = showRandom)
+}
+
+# Randomize the order of a list. This is an internal, non-exported function.
+randomOrder <- function(x) x[sample(length(x))]
+```
+
+pkgB creates a stack and exports it for the user to access:
+
+```R
+# Create a stack and populate it with a few values.
+# This stack is exported so users can access it.
+stackB <- Stack()
+
+stackB$push(5)
+stackB$push(6)
+stackB$push(7)
+```
+
+## Installing the two packages
+
+Now if we install pkgA 1.0 and pkgB, we can access `stackB`:
+
+```R
+#### Restart R before continuing ####
+
+.libPaths(c("~/Rtmp", .libPaths()))
+devtools::install('pkgA_1')
+devtools::install('pkgB')
+
+library(pkgB)
+stackB$push(10)
+stackB$showRandom()
+#> [1] 10  7  5  6
+```
+
+So far, so good.
+
+## Upgrading to pkgA 2.0
+
+pkgA 2.0 has a small change: the code in the `randomOrder` function has been inlined into the `showRandom` function, so there's no `randomOrder` function anymore:
+
+```R
+# Create a stack object
+# In version 2.0, we've inlined the randomOrder function
+Stack <- function() {
+  s <- numeric()
+  push <- function(val) s <<- c(val, s)
+  pop <- function() {
+    val <- s[1]
+    s <<- s[-1]
+    val
+  }
+  showRandom <- function() print(s[sample(length(s))])
+
+  list(push = push, pop = pop, showRandom = showRandom)
+}
+```
+
+
+Now we'll install pkgA 2.0 and try to use pkgB again:
+
+```R
+#### Restart R before continuing ####
+
+.libPaths(c("~/Rtmp", .libPaths()))
+devtools::install('pkgA_2')
+
+library(pkgB)
+stackB$push(10)
+stackB$showRandom()
+#> Error in print(randomOrder(s)) : could not find function "randomOrder"
+```
+
+pkgB is broken by the pkgA upgrade, even though the external interfaces to pkgA are exactly the same! The only thing that changed was some internal code, including the removal of an internal function.
+
+## Fixing pkgB
+
+The way to fix pkgB is to build it against pkgA 2.0:
+
+```R
+#### Restart R before continuing ####
+
+.libPaths(c("~/Rtmp", .libPaths()))
+devtools::install('pkgA_2')
+devtools::install('pkgB')
+
+library(pkgB)
+stackB$push(10)
+stackB$showRandom()
+#> [1]  6  5 10  7
+```
+
+## Wrap-up
+
+In this more realistic example, we've seen that:
+
+* If we install pkgA 1.0 and then pkgB, it works.
+* If we install pkgA 2.0 and then pkgB, it works.
+* If we install pkgA 1.0, then pkgB, then pkgA 2.0, it's broken.
+
+*****
+
+# Cleaning up
 
 We can restart R and delete the temporary directory where we installed the packages:
 
