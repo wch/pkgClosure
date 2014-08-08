@@ -1,0 +1,4 @@
+Package: pkgB
+Version: 1.0
+Imports:
+    pkgA
