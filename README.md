@@ -41,17 +41,13 @@ We'll install the packages to a temporary directory then run `funB()`:
 
 ```R
 # Install pkgA 1.0 and pkgB to a temp directory that lasts across R sessions
-library(devtools)
-tmpdir <- "~/Rtmp"
-dir.create(tmpdir)
-.libPaths(c(tmpdir, .libPaths()))
+dir.create("~/Rtmp")
+.libPaths(c("~/Rtmp", .libPaths()))
 
-install('pkgA_1')
+devtools::install('pkgA_1')
 library(pkgA)
-funA()
-#> [1] "Called funA in pkgA 1.0"
 
-install('pkgB')
+devtools::install('pkgB')
 library(pkgB)
 funB()
 #> [1] "This closure was created in pkgA 1.0"
@@ -88,10 +84,8 @@ Restart R and install it:
 ```R
 #### Restart R before continuing ####
 
-# Install pkgA 2.0 ----------------------------------------------------
-library(devtools)
 .libPaths(c("~/Rtmp", .libPaths()))
-install('pkgA_2')
+devtools::install('pkgA_2')
 
 library(pkgB)
 funB()
@@ -99,6 +93,29 @@ funB()
 #> [1] "The parent env of this closure has versionString pkgA 1.0"
 #> [1] "Called funA in pkgA 2.0"
 ```
+
+The result is a mix of pkgA 1.0 and 2.0!
+
+If we had installed pkgA 2.0 and then built and installed pkgB against it, the result is different (and what we would expect):
+
+```R
+#### Restart R before continuing ####
+
+.libPaths(c("~/Rtmp", .libPaths()))
+devtools::install('pkgA_2')
+devtools::install('pkgB')
+
+library(pkgB)
+funB()
+#> [1] "This closure was created in pkgA 2.0"
+#> [1] "The parent env of this closure has versionString pkgA 2.0"
+#> [1] "Called funA in pkgA 2.0"
+```
+
+So it matters not only what versions of packages you have installed; it also matters what versions of packages _were_ installed when you built and installed other packages.
+
+
+## Conclusion
 
 We can conclude that, when pkgB is built:
 
@@ -110,10 +127,14 @@ R must know that, because the grandparent environment is the pkgA namespace, it 
 
 This could potentially lead to a mismatch between the function body and pkgA namespace. The body of the function in pkgB might expect to find one thing in the pkgA namespace, when the pkgA namespace contains something different.
 
+Suppose pkgA 1.0 and pkgB are on CRAN (as binary packages), and then pkgA is updated to 2.0 on CRAN. Unless pkgB is rebuilt against the new version of pkgA, it will have a mismatch between the closure's function body, and the environment. I don't think CRAN does this -- it does not rebuild all downstream dependencies when a package is updated. And I know R doesn't rebuild downstream packages when a new version of a package a is installed from source, as is always the case on Linux.
 
-## Clean up
+This means that if a package is used to create objects that are stored in another package, and that first package changes, it could potentially break every package that uses it. In the example here, imagine if `funA` (which is not an exported function) were removed in pkgA 3.0. In this situation, anyone who started with pkgA 1.0 or 2.0 installed, then installed pkgB, then upgraded to pkgA 3.0, would suddenly see pkgB break!
 
-Finally, we can restart R and delete the temporary directory where we installed the packages:
+
+## Cleaning up
+
+We can restart R and delete the temporary directory where we installed the packages:
 
 ```R
 #### Restart R before continuing ####
