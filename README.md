@@ -161,13 +161,13 @@ Stack <- function() {
     s <<- s[-1]
     val
   }
-  showRandom <- function() print(randomOrder(s))
+  showRandom <- function() print(randomOrder1(s))
 
   list(push = push, pop = pop, showRandom = showRandom)
 }
 
 # Randomize the order of a list. This is an internal, non-exported function.
-randomOrder <- function(x) x[sample(length(x))]
+randomOrder1 <- function(x) x[sample(length(x))]
 ```
 
 pkgB creates a stack and exports it for the user to access:
@@ -203,11 +203,11 @@ So far, so good.
 
 ## Upgrading to pkgA 2.0
 
-pkgA 2.0 has a small change: the code in the `randomOrder` function has been inlined into the `showRandom` function, so there's no `randomOrder` function anymore:
+pkgA 2.0 has a small change: the `randomOrder1` function has been renamed to `randomOrder2`:
 
 ```R
 # Create a stack object
-# In version 2.0, we've inlined the randomOrder function
+# In version 2.0, we've renamed randomOrder1 to randomOrder2
 Stack <- function() {
   s <- numeric()
   push <- function(val) s <<- c(val, s)
@@ -216,10 +216,13 @@ Stack <- function() {
     s <<- s[-1]
     val
   }
-  showRandom <- function() print(s[sample(length(s))])
+  showRandom <- function() print(randomOrder2(s))
 
   list(push = push, pop = pop, showRandom = showRandom)
 }
+
+# Randomize the order of a list. This is an internal, non-exported function.
+randomOrder2 <- function(x) x[sample(length(x))]
 ```
 
 
@@ -234,10 +237,10 @@ devtools::install('pkgA_2')
 library(pkgB)
 stackB$push(10)
 stackB$showRandom()
-#> Error in print(randomOrder(s)) : could not find function "randomOrder"
+#> Error in print(randomOrder1(s)) : could not find function "randomOrder1"
 ```
 
-pkgB is broken by the pkgA upgrade, even though the external interfaces to pkgA are exactly the same! The only thing that changed was some internal code, including the removal of an internal function.
+pkgB is broken by the pkgA upgrade, even though the external interfaces to pkgA are completely unchanged! The only change was that an internal function was renamed.
 
 ## Fixing pkgB
 
@@ -263,6 +266,11 @@ In this more realistic example, we've seen that:
 * If we install pkgA 1.0 and then pkgB, it works.
 * If we install pkgA 2.0 and then pkgB, it works.
 * If we install pkgA 1.0, then pkgB, then pkgA 2.0, it's broken.
+
+I didn't include a demonstration of this, but it's also true that:
+
+* If we install pkgA 2.0, then pkgB, then pkgA 1.0, it's broken.
+
 
 *****
 
